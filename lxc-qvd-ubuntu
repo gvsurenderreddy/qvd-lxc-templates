@@ -169,13 +169,13 @@ install_extra_packages(){
 	mount -o bind /dev $ROOTFS/dev
 	mount -o bind /dev/pts $ROOTFS/dev/pts
 	mount -o bind /sys $ROOTFS/sys
+
+	LIST=
 	if [ -f $EXTRAPACKAGES ] ; then 
-		LIST= 
-		while read line ; do 
-			echo $line | egrep "^\s*#" &> /dev/null
-			if [ $? -ne 0 ] ; then 
-				LIST="$LIST $line"
-			fi 
+		while read line ; do
+		        if [ ! $(echo $line | egrep "^\s*#") ] ; then
+		                LIST=$(echo $LIST $line)
+		        fi
 		done < $EXTRAPACKAGES 
 		#echo $LIST 
 		if [ -z "$LIST" ] ; then 
@@ -754,14 +754,14 @@ bindhome: bind <user>'s home into the container
 arch: the container architecture (e.g. amd64): defaults to host arch
 auth-key: SSH Public key file to inject into container
 desktop: xfce4 , gnome, kde ...
-extra-packages: File containing extra packages 1 per line
+packages-from: File containing extra packages 1 per line
 qvdversion: Version of QVD to be installed in the image. 
 
 EOF
     return 0
 }
 
-options=$(getopt -o a:b:hp:r:xn:FS:d -l arch:,bindhome:,help,path:,release:,trim,name:,flush-cache,auth-key:,debug,desktop:,qvdversion:,extra-packages:, -- "$@")
+options=$(getopt -o a:b:hp:r:xn:FS:d -l arch:,bindhome:,help,path:,release:,trim,name:,flush-cache,auth-key:,debug,desktop:,qvdversion:,packages-from:, -- "$@")
 
 if [ $? -ne 0 ]; then
     usage $(basename $0)
@@ -815,7 +815,7 @@ do
     -d|--debug)     debug=1; shift 1;;
     --desktop)   desktop=$2 ; shift 2 ;;
 	--qvdversion) qvdversion=$2 ; shift 2 ;;
-	--extra-packages) extrapackages=$2 ; shift 2 ;; 
+	--packages-from) extrapackages=$2 ; shift 2 ;; 
     --)             shift 1; break ;;
         *)              break ;;
     esac
