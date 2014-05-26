@@ -30,8 +30,129 @@ if [ -r /etc/default/lxc ]; then
     . /etc/default/lxc
 fi
 
-configure_ubuntu()
-{
+
+
+install_qvd_vma() { 
+	
+	#Params are rootfs version arch
+
+	rootfs=$1
+	qvdversion=$2
+	
+	write_qvd_mirror $rootfs $qvdversion $arch
+	download_qvd_vma $rootfs
+	configure_vma_container $rootfs
+}
+
+
+
+write_qvd_mirror () {	
+	QVDVERSION=$2
+	ROOTFS=$1
+	QVDMIRROR="deb http://cpan-mirror.qindel.com/packages ${QVDVERSION} main"
+	cat <<EOF > "$ROOTFS/etc/apt/sources.list.d/qvd.list"
+$QVDMIRROR
+EOF
+}
+
+download_qvd_vma ()  {
+	ROOTFS=$1 
+	chroot $ROOTFS apt-get update 
+	chroot $ROOTFS apt-get install --force-yes -y perl-qvd-vma
+}
+
+configure_vma_container () {
+	ROOTFS=$1 
+		
+	# Enable vma 
+	chroot $ROOTFS mkdir /etc/qvd
+	chroot $ROOTFS cp /usr/lib/qvd/config/sample-vma.conf /etc/qvd/vma.conf 
+	
+	# Removing cron jobs 
+	chroot $ROOTFS rm /etc/cron.daily/apt
+	chroot $ROOTFS rm /etc/cron.daily/passwd
+	
+	# Random crontab times
+	cat <<'EOF' > $ROOTFS/usr/local/bin/randcron.sh
+#!/bin/bash
+basedir=`dirname $0` ; 
+$basedir/randcron.pl < /etc/crontab > /etc/crontab.new && mv  /etc/crontab.new /etc/crontab 	
+EOF
+
+cat <<'END' > $ROOTFS/usr/local/bin/randcron.pl 
+#!/usr/bin/perl -w
+use strict;
+while(my $line = <STDIN>) {
+if ($line =~ /(\d+|\*)\s+(\d+|\*)/ ) {
+my ($min, $hr, @etc) = split(/\s+/, $line);
+$min = int(rand(59));
+$hr  = int(rand(12)) unless ($hr eq "*");
+print join(' ', $min, $hr, @etc) . "\n";
+} else {
+print $line;
+}
+}
+END
+
+
+	chroot $ROOTFS chmod +x /usr/local/bin/randcron.pl
+	chroot $ROOTFS chmod +x /usr/local/bin/randcron.sh
+	
+	chroot $ROOTFS sed -i /^exit/d  /etc/rc.local
+	
+	echo >> $ROOTFS/etc/rc.local
+	echo "#Added by QVD to randomize cronjobs" >> $ROOTFS/etc/rc.local
+	echo '/usr/local/bin/randcron.sh' >> $ROOTFS/etc/rc.local
+	echo 'exit 0' >> $ROOTFS/etc/rc.local		
+}
+
+get_extension_id () { 
+	$XPI_FILE=$1 ; 
+	local ID=$(unzip -qc $1 install.rdf | xmlstarlet sel \
+		-N rdf=http://www.w3.org/1999/02/22-rdf-syntax-ns# \
+	    -N em=http://www.mozilla.org/2004/em-rdf# \
+	    -t -v \
+	    "//rdf:Description[@about='urn:mozilla:install-manifest']/em:id")
+	echo $ID 
+}
+
+install_qvd_desktop() { 
+		ROOTFS=$1
+		DESKTOP=$2 
+		
+		if [ -z $DESKTOP ] ; then 
+			echo "No Desktop to install"
+			exit 0 
+		fi	
+		
+		# Setting chroot to install packages 
+		mount -o bind /proc $ROOTFS/proc
+		mount -o bind /dev $ROOTFS/dev
+		mount -o bind /dev/pts $ROOTFS/dev/pts
+		mount -o bind /sys $ROOTFS/sys
+		
+		echo "Installing Desktop $DESKTOP"
+		chroot $ROOTFS apt-get install --force-yes -y $DESKTOP  
+		chroot $ROOTFS apt-get install --force-yes -y chromium-browser thunderbird tomboy pidgin
+		
+		#Setting thunderbird calendar extension 
+		
+		mkdir -p $ROOTFS/tmp/lightning
+		wget -O $ROOTFS/tmp/lightning/lighting.xpi  https://addons.mozilla.org/thunderbird/downloads/file/258498
+		ID=$(get_extension_id $ROOTFS/tmp/lightning/lighting.xpi)
+		mkdir -p $ROOTFS/usr/lib/thunderbird-addons/extensions/$ID && cd $ROOTFS/usr/lib/thunderbird-addons/extensions/$ID && unzip $ROOTFS/tmp/lightning/lighting.xpi
+		rm -f $ROOTFS/tmp/lightning/lighting.xpi
+		
+		# Umounting tempfs 
+		
+		umount $ROOTFS/proc
+		umount $ROOTFS/dev/pts
+		umount $ROOTFS/dev
+		umount $ROOTFS/sys
+		
+}
+
+configure_ubuntu() {
     rootfs=$1
     hostname=$2
     release=$3
@@ -275,7 +396,11 @@ install_ubuntu()
             rm -rf "$cache/rootfs-$arch"
         fi
 
-        echo "Checking cache download in $cache/rootfs-$arch ... "
+        echo "Checki
+
+
+
+ng cache download in $cache/rootfs-$arch ... "
         if [ ! -e "$cache/rootfs-$arch" ]; then
             download_ubuntu $cache $arch $release
             if [ $? -ne 0 ]; then
@@ -531,6 +656,8 @@ post_process()
         mv $rootfs/dev/shm $rootfs/dev/shm.bak
         ln -s /run/shm $rootfs/dev/shm
     fi
+
+    
 }
 
 do_bindhome()
@@ -587,7 +714,8 @@ EOF
     return 0
 }
 
-options=$(getopt -o a:b:hp:r:xn:FS:d -l arch:,bindhome:,help,path:,release:,trim,name:,flush-cache,auth-key:,debug -- "$@")
+options=$(getopt -o a:b:hp:r:xn:FS:de:q: -l arch:,bindhome:,help,path:,release:,trim,name:,flush-cache,auth-key:,debug,desktop:,qvdversion: -- "$@")
+
 if [ $? -ne 0 ]; then
     usage $(basename $0)
     exit 1
@@ -638,6 +766,8 @@ do
     -x|--trim)      trim_container=1; shift 1;;
     -S|--auth-key)  auth_key=$2; shift 2;;
     -d|--debug)     debug=1; shift 1;;
+    -e|--desktop)   desktop=$2 ; shift 2 ;;
+	-q|--qvdversion) qvdversion=$2 ; shift 2 ;;
     --)             shift 1; break ;;
         *)              break ;;
     esac
@@ -676,6 +806,10 @@ if [ $hostarch = "powerpc" -a $arch != "powerpc" ]; then
     exit 1
 fi
 
+if [ -z $qvdversion ]; then 
+	qvdversion="nightly-builds"
+fi
+
 which debootstrap >/dev/null 2>&1 || { echo "'debootstrap' command is missing" >&2; false; }
 
 if [ -z "$path" ]; then
@@ -687,6 +821,7 @@ if [ "$(id -u)" != "0" ]; then
     echo "This script should be run as 'root'"
     exit 1
 fi
+
 
 # detect rootfs
 config="$path/config"
@@ -713,6 +848,19 @@ if [ $? -ne 0 ]; then
     echo "failed write configuration file"
     exit 1
 fi
+
+install_qvd_vma $rootfs $qvdversion
+if [ $? -ne 0 ]; then
+    echo "failed to install vma"
+    exit 1
+fi
+
+install_qvd_desktop $rootfs $desktop
+if [ $? -ne 0 ]; then
+    echo "failed to install desktop"
+    exit 1
+fi
+
 
 post_process $rootfs $release $trim_container
 
