@@ -172,7 +172,8 @@ install_extra_packages(){
 	if [ -f $EXTRAPACKAGES ] ; then 
 		LIST= 
 		while read line ; do 
-			if [ ! echo $line | egrep "^\s*#"] ; then 
+			echo $line | egrep "^\s*#" &> /dev/null
+			if [ $? -ne 0 ] ; then 
 				LIST="$LIST $line"
 			fi 
 		done < $EXTRAPACKAGES 
