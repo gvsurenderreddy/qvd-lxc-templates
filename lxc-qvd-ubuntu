@@ -107,7 +107,7 @@ END
 }
 
 get_extension_id () { 
-	$XPI_FILE=$1 ; 
+	XPI_FILE=$1; 
 	local ID=$(unzip -qc $1 install.rdf | xmlstarlet sel \
 		-N rdf=http://www.w3.org/1999/02/22-rdf-syntax-ns# \
 	    -N em=http://www.mozilla.org/2004/em-rdf# \
@@ -119,11 +119,12 @@ get_extension_id () {
 install_qvd_desktop() { 
 		ROOTFS=$1
 		DESKTOP=$2 
+		EXTRAPACKAGES=$3
 		
-		if [ -z $DESKTOP ] ; then 
-			echo "No Desktop to install"
-			exit 0 
-		fi	
+		#if [ $DESKTOP == "none" ] ; then 
+		#	echo "No Desktop to install" 
+		#	return 0 
+		#fi	
 		
 		# Setting chroot to install packages 
 		mount -o bind /proc $ROOTFS/proc
@@ -143,12 +144,28 @@ install_qvd_desktop() {
 		mkdir -p $ROOTFS/usr/lib/thunderbird-addons/extensions/$ID && cd $ROOTFS/usr/lib/thunderbird-addons/extensions/$ID && unzip $ROOTFS/tmp/lightning/lighting.xpi
 		rm -f $ROOTFS/tmp/lightning/lighting.xpi
 		
+		if [ ! -z $EXTRAPACKAGES ] ; then 
+			if [ -f $EXTRAPACKAGES ] ; then 
+				LIST= 
+				while read line ; do 
+					if [ ! echo $line | egrep "^\s*#"] ; then 
+						LIST="$LIST $line"
+					fi 
+				done < $EXTRAPACKAGES 
+				if [ ! -z $LIST ] ; then 
+					chroot $ROOTFS apt-get install --force-yes -y $LIST 
+				fi 
+			else
+				echo $EXTRAPACKAGES not found 
+			fi
+		fi
+		
 		# Umounting tempfs 
 		
 		umount $ROOTFS/proc
 		umount $ROOTFS/dev/pts
 		umount $ROOTFS/dev
-		umount $ROOTFS/sys
+		umount $ROOTFS/system
 		
 }
 
@@ -714,7 +731,7 @@ EOF
     return 0
 }
 
-options=$(getopt -o a:b:hp:r:xn:FS:de:q: -l arch:,bindhome:,help,path:,release:,trim,name:,flush-cache,auth-key:,debug,desktop:,qvdversion: -- "$@")
+options=$(getopt -o a:b:hp:r:xn:FS:d -l arch:,bindhome:,help,path:,release:,trim,name:,flush-cache,auth-key:,debug,desktop:,qvdversion:,extra-packages:, -- "$@")
 
 if [ $? -ne 0 ]; then
     usage $(basename $0)
@@ -737,7 +754,7 @@ arch=$(arch)
 if [ -x /usr/bin/dpkg ] && /usr/bin/dpkg --print-architecture >/dev/null 2>&1; then
     arch=`/usr/bin/dpkg --print-architecture`
 elif which udpkg >/dev/null 2>&1 && udpkg --print-architecture >/dev/null 2>&1; then
-    arch=`/usr/bin/udpkg --print-architecture`
+    arch=`/usr/bin/udpkg --print-archrchitecture`
 else
     arch=$(arch)
     if [ "$arch" = "i686" ]; then
@@ -766,8 +783,9 @@ do
     -x|--trim)      trim_container=1; shift 1;;
     -S|--auth-key)  auth_key=$2; shift 2;;
     -d|--debug)     debug=1; shift 1;;
-    -e|--desktop)   desktop=$2 ; shift 2 ;;
-	-q|--qvdversion) qvdversion=$2 ; shift 2 ;;
+    --desktop)   desktop=$2 ; shift 2 ;;
+	--qvdversion) qvdversion=$2 ; shift 2 ;;
+	--extra-packages) extrapackages=$2 ; shift 2 ;; 
     --)             shift 1; break ;;
         *)              break ;;
     esac
@@ -809,6 +827,7 @@ fi
 if [ -z $qvdversion ]; then 
 	qvdversion="nightly-builds"
 fi
+
 
 which debootstrap >/dev/null 2>&1 || { echo "'debootstrap' command is missing" >&2; false; }
 
@@ -855,12 +874,11 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-install_qvd_desktop $rootfs $desktop
+install_qvd_desktop $rootfs $desktop $extrapackages
 if [ $? -ne 0 ]; then
     echo "failed to install desktop"
     exit 1
 fi
-
 
 post_process $rootfs $release $trim_container
 
