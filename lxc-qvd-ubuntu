@@ -121,10 +121,10 @@ install_qvd_desktop() {
 		DESKTOP=$2 
 		EXTRAPACKAGES=$3
 		
-		#if [ $DESKTOP == "none" ] ; then 
-		#	echo "No Desktop to install" 
-		#	return 0 
-		#fi	
+		if [ $DESKTOP == "none" ] ; then 
+			echo "No Desktop to install" 
+			return 0 
+		fi	
 		
 		# Setting chroot to install packages 
 		mount -o bind /proc $ROOTFS/proc
@@ -144,22 +144,6 @@ install_qvd_desktop() {
 		mkdir -p $ROOTFS/usr/lib/thunderbird-addons/extensions/$ID && cd $ROOTFS/usr/lib/thunderbird-addons/extensions/$ID && unzip $ROOTFS/tmp/lightning/lighting.xpi
 		rm -f $ROOTFS/tmp/lightning/lighting.xpi
 		
-		if [ ! -z $EXTRAPACKAGES ] ; then 
-			if [ -f $EXTRAPACKAGES ] ; then 
-				LIST= 
-				while read line ; do 
-					if [ ! echo $line | egrep "^\s*#"] ; then 
-						LIST="$LIST $line"
-					fi 
-				done < $EXTRAPACKAGES 
-				if [ ! -z $LIST ] ; then 
-					chroot $ROOTFS apt-get install --force-yes -y $LIST 
-				fi 
-			else
-				echo $EXTRAPACKAGES not found 
-			fi
-		fi
-		
 		# Umounting tempfs 
 		
 		umount $ROOTFS/proc
@@ -167,6 +151,44 @@ install_qvd_desktop() {
 		umount $ROOTFS/dev
 		umount $ROOTFS/system
 		
+}
+
+install_extra_packages(){
+	
+	ROOTFS=$1
+	EXTRAPACKAGES=$2
+	
+	if [ -z $EXTRAPACKAGES ] ; then 
+		echo Not extra packages to install 
+		return 0 
+	fi 
+	
+	
+	# Setting chroot to install packages 
+	mount -o bind /proc $ROOTFS/proc
+	mount -o bind /dev $ROOTFS/dev
+	mount -o bind /dev/pts $ROOTFS/dev/pts
+	mount -o bind /sys $ROOTFS/sys
+	if [ -f $EXTRAPACKAGES ] ; then 
+		LIST= 
+		while read line ; do 
+			if [ ! echo $line | egrep "^\s*#"] ; then 
+				LIST="$LIST $line"
+			fi 
+		done < $EXTRAPACKAGES 
+		if [ ! -z $LIST ] ; then 
+			chroot $ROOTFS apt-get install --force-yes -y $LIST 
+		fi 
+	else
+		echo $EXTRAPACKAGES not found 
+		return 1 
+	fi
+	
+	umount $ROOTFS/proc
+	umount $ROOTFS/dev/pts
+	umount $ROOTFS/dev
+	umount $ROOTFS/system
+	
 }
 
 configure_ubuntu() {
@@ -874,9 +896,15 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-install_qvd_desktop $rootfs $desktop $extrapackages
+install_qvd_desktop $rootfs $desktop 
 if [ $? -ne 0 ]; then
     echo "failed to install desktop"
+    exit 1
+fi
+
+install_extra_packages $rootfs $extrapackages
+if [ $? -ne 0 ]; then
+    echo "failed to install extrapackages"
     exit 1
 fi
 
