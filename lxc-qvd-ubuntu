@@ -123,7 +123,7 @@ END
 }
 
 get_extension_id () { 
-	$XPI_FILE=$1 ; 
+	XPI_FILE=$1; 
 	local ID=$(unzip -qc $1 install.rdf | xmlstarlet sel \
 		-N rdf=http://www.w3.org/1999/02/22-rdf-syntax-ns# \
 	    -N em=http://www.mozilla.org/2004/em-rdf# \
@@ -136,9 +136,9 @@ install_qvd_desktop() {
 		ROOTFS=$1
 		DESKTOP=$2 
 		
-		if [ -z $DESKTOP ] ; then 
-			echo "No Desktop to install"
-			exit 0 
+		if [ $DESKTOP == "none" ] ; then 
+			echo "No Desktop to install" 
+			return 0 
 		fi	
 		
 		# Setting chroot to install packages 
@@ -164,7 +164,7 @@ install_qvd_desktop() {
 		umount $ROOTFS/proc
 		umount $ROOTFS/dev/pts
 		umount $ROOTFS/dev
-		umount $ROOTFS/sys
+		umount $ROOTFS/system
 		
 }
 
@@ -393,7 +393,18 @@ install_packages()
     fi
     if [ -n "${packages}" ]
     then
+        # Some packages require access to the following resources (e.g. dbus)
+	mount -o bind /proc $ROOTFS/proc
+	mount -o bind /dev $ROOTFS/dev
+	mount -o bind /dev/pts $ROOTFS/dev/pts
+	mount -o bind /sys $ROOTFS/sys
+
         chroot $rootfs apt-get install --force-yes -y --no-install-recommends ${packages}
+
+        umount $ROOTFS/proc
+	umount $ROOTFS/dev/pts
+	umount $ROOTFS/dev
+	umount $ROOTFS/system
     fi
 }
 
@@ -754,7 +765,9 @@ usage()
     cat <<EOF
 $1 -h|--help [-a|--arch] [-b|--bindhome <user>] [-d|--debug]
    [-F | --flush-cache] [-r|--release <release>] [ -S | --auth-key <keyfile>]
-   [--rootfs <rootfs>] [--packages <packages>] [-u|--user <user>] [--password <password>]
+   [--rootfs <rootfs>] [--packages <packages>] [--packages-from <file>]
+   [-u|--user <user>] [--password <password>]
+   [--desktop <desktop> ] [--qvdversion <qvdversion>]
 release: the ubuntu release (e.g. precise): defaults to host release on ubuntu, otherwise uses latest LTS
 bindhome: bind <user>'s home into the container
           The ubuntu user will not be created, and <user> will have
@@ -762,11 +775,16 @@ bindhome: bind <user>'s home into the container
 arch: the container architecture (e.g. amd64): defaults to host arch
 auth-key: SSH Public key file to inject into container
 packages: list of packages to add comma separated
+packages-from: file containing a list of packages, 1 per line
+desktop: xfce4, gnome, kde, etc.
+
+qvdversion: Version of QVD to be installed in the image. 
+
 EOF
     return 0
 }
 
-options=$(getopt -o a:b:hp:r:n:FS:du: -l arch:,bindhome:,help,path:,release:,name:,flush-cache,auth-key:,debug,rootfs:,packages:,user:,password:,mirror:,security-mirror:,desktop:,qvdversion: -- "$@")
+options=$(getopt -o a:b:hp:r:n:FS:du: -l arch:,bindhome:,help,path:,release:,name:,flush-cache,auth-key:,debug,rootfs:,packages:,packages-from:,user:,password:,mirror:,security-mirror:,desktop:,qvdversion -- "$@")
 
 if [ $? -ne 0 ]; then
     usage $(basename $0)
@@ -788,7 +806,7 @@ bindhome=
 if [ -x /usr/bin/dpkg ] && /usr/bin/dpkg --print-architecture >/dev/null 2>&1; then
     arch=`/usr/bin/dpkg --print-architecture`
 elif which udpkg >/dev/null 2>&1 && udpkg --print-architecture >/dev/null 2>&1; then
-    arch=`/usr/bin/udpkg --print-architecture`
+    arch=`/usr/bin/udpkg --print-archrchitecture`
 else
     arch=$(uname -m)
     if [ "$arch" = "i686" ]; then
@@ -822,6 +840,7 @@ do
     -F|--flush-cache) flushcache=1; shift 1;;
     -r|--release)   release=$2; shift 2;;
     --packages)     packages=$2; shift 2;;
+    --packages-from) packages_from=$2 ; shift 2 ;; 
     -b|--bindhome)  bindhome=$2; shift 2;;
     -a|--arch)      arch=$2; shift 2;;
     -S|--auth-key)  auth_key=$2; shift 2;;
@@ -877,6 +896,22 @@ if [ -z $qvdversion ]; then
 	qvdversion="nightly-builds"
 fi
 
+if [ -n "$packages_from" ]; then
+    extra="`cat $packages_from`"
+    if [ $? -ne 0 ]; then
+        echo "Error: unable to read list of packages from file '$packages_from'"
+        exit 1
+    fi
+    if [ -n "$extra" ]; then
+        $extra="`echo $extra | sed 's/\s+/,/g'`"
+        if [ -n "$packages" ]; then
+            $packages="$packages,$extra"
+        else
+            $packages="$extra"
+        fi
+    fi
+fi
+
 which debootstrap >/dev/null 2>&1 || { echo "'debootstrap' command is missing" >&2; false; }
 
 if [ -z "$path" ]; then
@@ -926,7 +961,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-install_qvd_desktop $rootfs $desktop
+install_qvd_desktop $rootfs $desktop 
 if [ $? -ne 0 ]; then
     echo "failed to install desktop"
     exit 1
