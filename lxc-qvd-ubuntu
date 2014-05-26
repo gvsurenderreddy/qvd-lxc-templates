@@ -177,11 +177,14 @@ install_extra_packages(){
 				LIST="$LIST $line"
 			fi 
 		done < $EXTRAPACKAGES 
-		if [ ! -z $LIST ] ; then 
+		#echo $LIST 
+		if [ -z "$LIST" ] ; then 
+			echo $EXTRAPACKAGES File is empty
+		else
 			chroot $ROOTFS apt-get install --force-yes -y $LIST 
-		fi 
+		fi
 	else
-		echo $EXTRAPACKAGES not found 
+		echo $EXTRAPACKAGES not found
 		return 1 
 	fi
 	
@@ -742,7 +745,7 @@ usage()
 {
     cat <<EOF
 $1 -h|--help [-a|--arch] [-b|--bindhome <user>] [--trim] [-d|--debug]
-   [-F | --flush-cache] [-r|--release <release>] [ -S | --auth-key <keyfile>]
+   [-F | --flush-cache] [-r|--release <release>] [ -S | --auth-key <keyfile>] [ --desktop <desktop> ] [ --extra-packages <file>] [ --qvdversion <qvdversion>]
 release: the ubuntu release (e.g. precise): defaults to host release on ubuntu, otherwise uses latest LTS
 trim: make a minimal (faster, but not upgrade-safe) container
 bindhome: bind <user>'s home into the container
@@ -750,6 +753,10 @@ bindhome: bind <user>'s home into the container
           sudo access.
 arch: the container architecture (e.g. amd64): defaults to host arch
 auth-key: SSH Public key file to inject into container
+desktop: xfce4 , gnome, kde ...
+extra-packages: File containing extra packages 1 per line
+qvdversion: Version of QVD to be installed in the image. 
+
 EOF
     return 0
 }
