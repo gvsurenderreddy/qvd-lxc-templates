@@ -149,7 +149,7 @@ install_tunderbird_plugins() {
 	fi
 			
 	ID=$(get_extension_id  $ROOTFS/tmp/$EXTENSION/$EXTENSION.xpi)
-	cd $EXTENSION_DIR && unzip $ROOTFS/tmp/$EXTENSION/$EXTENSION.xpi
+	mkdir $EXTENSION_DIR/$ID && cd $EXTENSION_DIR$ID && unzip $ROOTFS/tmp/$EXTENSION/$EXTENSION.xpi
 	rm -f $ROOTFS/tmp/$EXTENSION/$EXTENSION.xpi
 	
 }
@@ -207,10 +207,11 @@ install_qvd_desktop() {
 		
 		# Umounting tempfs 
 		
-		umount $ROOTFS/proc
-		umount $ROOTFS/dev/pts
-		umount $ROOTFS/dev
-		umount $ROOTFS/sys
+		
+		umount  $ROOTFS/proc
+		umount  $ROOTFS/dev/pts
+		umount  $ROOTFS/dev
+		umount  $ROOTFS/sys
 		
 }
 
@@ -248,11 +249,11 @@ install_extra_packages(){
 		echo $EXTRAPACKAGES not found
 		return 1 
 	fi
-	
-	umount $ROOTFS/proc
-	umount $ROOTFS/dev/pts
-	umount $ROOTFS/dev
-	umount $ROOTFS/sys
+		
+	umount  $ROOTFS/proc
+	umount  $ROOTFS/dev/pts
+	umount  $ROOTFS/dev
+	umount  $ROOTFS/sys
 	
 }
 
