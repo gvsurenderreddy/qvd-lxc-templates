@@ -116,15 +116,79 @@ get_extension_id () {
 	echo $ID 
 }
 
+
+install_tunderbird_plugins() {
+	
+	ROOTFS=$1
+	EXTENSION=$2
+	EXTENSION_SRC=$3
+	APP=$4 
+	
+	case $APP in 
+		thunderbird) 
+			EXTENSION_DIR="$ROOTFS/usr/lib/thunderbird-addons/extensions/"
+		;; 
+		firefox) 
+			EXTENSION_DIR="$ROOTFS/usr/lib/firefox-addons/extensions/"
+		;;
+		*) 
+			echo App $APP Not supported, exiting
+			return 1
+		;; 
+	esac
+		
+	
+	mkdir -p $ROOTFS/tmp/$EXTENSION
+	if [ $(echo $EXTENSION_SRC | egrep "^https?://") ] ; then 
+		wget -O $ROOTFS/tmp/$EXTENSION/$EXTENSION.xpi $EXTENSION_SRC
+	elif [ -f $EXTENSION_SRC ] ; then 
+		cp  $EXTENSION_SRC $ROOTFS/tmp/$EXTENSION/$EXTENSION.xpi
+	else 
+		echo "Extension src format not reconigzed, exiting"
+		return 1 
+	fi
+			
+	ID=$(get_extension_id  $EXTENSION.xpi)
+	cd $$EXTENSION_DIR && unzip $ROOTFS/tmp/$EXTENSION/$EXTENSION.xpi
+	rm -f $ROOTFS/tmp/$EXTENSION/$EXTENSION.xpi
+	
+}
+
+configure_qvd_desktop(){ 
+	ROOTFS=$1
+	
+	chroot $ROOTFS apt-get install --force-yes -y firefox thunderbird tomboy pidgin
+	install_tunderbird_plugins $ROOTFS lightning https://addons.mozilla.org/thunderbird/downloads/file/258498 thunderbird
+	
+}
+
+
 install_qvd_desktop() { 
 		ROOTFS=$1
 		DESKTOP=$2 
-		EXTRAPACKAGES=$3
 		
-		if [ $DESKTOP == "none" ] ; then 
-			echo "No Desktop to install" 
-			return 0 
-		fi	
+		case $DESKTOP in 
+			none) 
+				echo "No Desktop to install" 
+				return 0
+			;;
+			qvd)
+				DESKTOP=xfce4
+			;;
+			xfc*) 
+				DESKTOP=xubuntu-desktop
+			;; 
+			gnome*) 
+				DESKTOP=ubuntu-gnome-desktop
+			;;
+			kde*)
+				DESKTOP=kubuntu-desktop
+			;;
+			*) 
+				echo $DESKTOP not supported
+				return 1 
+			;;
+		esac
 		
 		# Setting chroot to install packages 
 		mount -o bind /proc $ROOTFS/proc
@@ -133,23 +197,18 @@ install_qvd_desktop() {
 		mount -o bind /sys $ROOTFS/sys
 		
 		echo "Installing Desktop $DESKTOP"
-		chroot $ROOTFS apt-get install --force-yes -y $DESKTOP  
-		chroot $ROOTFS apt-get install --force-yes -y chromium-browser thunderbird tomboy pidgin
+		chroot $ROOTFS apt-get install --force-yes -y $DESKTOP 
 		
-		#Setting thunderbird calendar extension 
-		
-		mkdir -p $ROOTFS/tmp/lightning
-		wget -O $ROOTFS/tmp/lightning/lighting.xpi  https://addons.mozilla.org/thunderbird/downloads/file/258498
-		ID=$(get_extension_id $ROOTFS/tmp/lightning/lighting.xpi)
-		mkdir -p $ROOTFS/usr/lib/thunderbird-addons/extensions/$ID && cd $ROOTFS/usr/lib/thunderbird-addons/extensions/$ID && unzip $ROOTFS/tmp/lightning/lighting.xpi
-		rm -f $ROOTFS/tmp/lightning/lighting.xpi
+		if [ $DESKTOP == 'xfce4' ] ; then 
+			configure_qvd_desktop $ROOTFS
+		fi 
 		
 		# Umounting tempfs 
 		
 		umount $ROOTFS/proc
 		umount $ROOTFS/dev/pts
 		umount $ROOTFS/dev
-		umount $ROOTFS/system
+		umount $ROOTFS/sys
 		
 }
 
@@ -171,7 +230,7 @@ install_extra_packages(){
 	mount -o bind /sys $ROOTFS/sys
 
 	LIST=
-	if [ -f $EXTRAPACKAGES ] ; then 
+	if [[ (-f $EXTRAPACKAGES ) && (-s $EXTRAPACKAGES) ]] ; then 
 		while read line ; do
 		        if [ ! $(echo $line | egrep "^\s*#") ] ; then
 		                LIST=$(echo $LIST $line)
@@ -191,7 +250,7 @@ install_extra_packages(){
 	umount $ROOTFS/proc
 	umount $ROOTFS/dev/pts
 	umount $ROOTFS/dev
-	umount $ROOTFS/system
+	umount $ROOTFS/sys
 	
 }
 
@@ -817,7 +876,7 @@ do
 	--qvdversion) qvdversion=$2 ; shift 2 ;;
 	--packages-from) extrapackages=$2 ; shift 2 ;; 
     --)             shift 1; break ;;
-        *)              break ;;
+    *)              break
     esac
 done
 
