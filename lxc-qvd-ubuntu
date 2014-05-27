@@ -148,8 +148,8 @@ install_tunderbird_plugins() {
 		return 1 
 	fi
 			
-	ID=$(get_extension_id  $EXTENSION.xpi)
-	cd $$EXTENSION_DIR && unzip $ROOTFS/tmp/$EXTENSION/$EXTENSION.xpi
+	ID=$(get_extension_id  $ROOTFS/tmp/$EXTENSION/$EXTENSION.xpi)
+	cd $EXTENSION_DIR && unzip $ROOTFS/tmp/$EXTENSION/$EXTENSION.xpi
 	rm -f $ROOTFS/tmp/$EXTENSION/$EXTENSION.xpi
 	
 }
@@ -157,8 +157,10 @@ install_tunderbird_plugins() {
 configure_qvd_desktop(){ 
 	ROOTFS=$1
 	
-	chroot $ROOTFS apt-get install --force-yes -y firefox thunderbird tomboy pidgin
+	chroot $ROOTFS apt-get install --force-yes -y firefox thunderbird tomboy pidgin flashplugin-installer
 	install_tunderbird_plugins $ROOTFS lightning https://addons.mozilla.org/thunderbird/downloads/file/258498 thunderbird
+	
+	
 	
 }
 
