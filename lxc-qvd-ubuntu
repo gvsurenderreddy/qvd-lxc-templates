@@ -765,9 +765,8 @@ usage()
     cat <<EOF
 $1 -h|--help [-a|--arch] [-b|--bindhome <user>] [-d|--debug]
    [-F | --flush-cache] [-r|--release <release>] [ -S | --auth-key <keyfile>]
-   [--rootfs <rootfs>] [--packages <packages>] [--packages-from <file>]
-   [-u|--user <user>] [--password <password>]
-   [--desktop <desktop> ] [--qvdversion <qvdversion>]
+   [--rootfs <rootfs>] [--packages <packages>] [-u|--user <user>] [--password <password>]
+   [ --desktop <desktop> ] [ --extra-packages <file>] [ --qvdversion <qvdversion>]
 release: the ubuntu release (e.g. precise): defaults to host release on ubuntu, otherwise uses latest LTS
 bindhome: bind <user>'s home into the container
           The ubuntu user will not be created, and <user> will have
@@ -777,7 +776,6 @@ auth-key: SSH Public key file to inject into container
 packages: list of packages to add comma separated
 packages-from: file containing a list of packages, 1 per line
 desktop: xfce4, gnome, kde, etc.
-
 qvdversion: Version of QVD to be installed in the image. 
 
 EOF
@@ -849,6 +847,7 @@ do
     --security-mirror) SECURITY_MIRROR=$2; shift 2;;
     --desktop)      desktop=$2 ; shift 2 ;;
     --qvdversion)   qvdversion=$2 ; shift 2 ;;
+    --extra-packages) extrapackages=$2 ; shift 2 ;; 
     --)             shift 1; break ;;
     *)              break ;;
     esac
@@ -964,6 +963,12 @@ fi
 install_qvd_desktop $rootfs $desktop 
 if [ $? -ne 0 ]; then
     echo "failed to install desktop"
+    exit 1
+fi
+
+install_extra_packages $rootfs $extrapackages
+if [ $? -ne 0 ]; then
+    echo "failed to install extrapackages"
     exit 1
 fi
 
