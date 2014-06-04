@@ -220,10 +220,10 @@ install_qvd_desktop() {
 		
 }
 
-clean_dev() {
-	
-	$ROOTFS=$1 
-	
+
+
+clean_dev() {	
+	ROOTFS=$1 
 	if lsof | grep ${ROOTFS} &> /dev/null ; then
 	        for i in $(lsof | grep $ROOTFS | awk ' { print $2 } ') ; do
 	                echo Detecting  $i  cleaning
@@ -234,8 +234,7 @@ clean_dev() {
 							echo $i Already killed
 					fi
 	        done
-	fi
-	
+	fi	
 }
 
 
