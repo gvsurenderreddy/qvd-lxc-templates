@@ -206,7 +206,8 @@ install_qvd_desktop() {
 			configure_qvd_desktop $ROOTFS
 		else
 			chroot $ROOTFS apt-get install --force-yes -y $DESKTOP
-		file
+			
+		fi
 		
 		# Umounting tempfs 
 		
