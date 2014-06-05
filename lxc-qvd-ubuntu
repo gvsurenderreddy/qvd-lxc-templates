@@ -224,7 +224,7 @@ install_qvd_desktop() {
 clean_dev() {	
 
 	MOUNTPOINT=$1
-	fuser -k $MOUNTPOIN
+	fuser -k $MOUNTPOINT
 	umount $MOUNTPOINT 
 
 }
