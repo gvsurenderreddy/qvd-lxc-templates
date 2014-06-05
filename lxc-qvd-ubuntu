@@ -226,13 +226,15 @@ clean_dev() {
 	ROOTFS=$1 
 	if lsof | grep ${ROOTFS} &> /dev/null ; then
 	        for i in $(lsof | grep $ROOTFS | awk ' { print $2 } ') ; do
-	                echo Detecting  $i  cleaning
-	                if grep dbus /proc/$i/cmdline &> /dev/null  ; then
-	                        echo Killing $i as still running
-	                        kill $i
-	                else
-							echo $i Already killed
-					fi
+				echo Detecting  $i  cleaning
+				if grep dbus-daem /proc/$i/cmdline &> /dev/null  ; then
+				cat /proc/$i/cmdline
+				         echo Killing $i is running and is dbus
+				         kill $i
+				else
+				         cat /proc/$i/cmdline && echo
+				         echo $i Already killed
+				fi
 	        done
 	fi	
 }
