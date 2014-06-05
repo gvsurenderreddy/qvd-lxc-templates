@@ -212,31 +212,21 @@ install_qvd_desktop() {
 		# Umounting tempfs 
 		
 		
-		clean_dev  $ROOTFS
-		umount  $ROOTFS/proc
-		umount  $ROOTFS/dev/pts
-		umount  $ROOTFS/dev
-		umount  $ROOTFS/sys
+		#clean_dev  $ROOTFS
+		clean_dev  $ROOTFS/sys
+		clean_dev  $ROOTFS/proc
+		clean_dev  $ROOTFS/dev/pts
+		clean_dev  $ROOTFS/dev
+		
 		
 }
 
-
-
 clean_dev() {	
-	ROOTFS=$1 
-	if lsof | grep ${ROOTFS} &> /dev/null ; then
-	        for i in $(lsof | grep $ROOTFS | awk ' { print $2 } ') ; do
-				echo Detecting  $i  cleaning
-				if grep dbus-daem /proc/$i/cmdline &> /dev/null  ; then
-				cat /proc/$i/cmdline
-				         echo Killing $i is running and is dbus
-				         kill $i
-				else
-				         cat /proc/$i/cmdline && echo
-				         echo $i Already killed
-				fi
-	        done
-	fi	
+
+	MOUNTPOINT=$1
+	fuser -k $MOUNTPOIN
+	umount $MOUNTPOINT 
+
 }
 
 
@@ -274,12 +264,11 @@ install_extra_packages(){
 		echo $EXTRAPACKAGES not found
 		return 1 
 	fi
-	
-	clean_dev  $ROOTFS	
-	umount  $ROOTFS/proc
-	umount  $ROOTFS/dev/pts
-	umount  $ROOTFS/dev
-	umount  $ROOTFS/sys
+		
+	clean_dev  $ROOTFS/sys
+	clean_dev  $ROOTFS/proc
+	clean_dev  $ROOTFS/dev/pts
+	clean_dev  $ROOTFS/dev
 	
 }
 
