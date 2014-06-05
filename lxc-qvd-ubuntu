@@ -227,9 +227,9 @@ clean_dev() {
 	if lsof | grep ${ROOTFS} &> /dev/null ; then
 	        for i in $(lsof | grep $ROOTFS | awk ' { print $2 } ') ; do
 	                echo Detecting  $i  cleaning
-	                if kill -0 $i &> /dev/null ; then
+	                if grep dbus /proc/$i/cmdline &> /dev/null  ; then
 	                        echo Killing $i as still running
-	                        kill -9 $i
+	                        kill $i
 	                else
 							echo $i Already killed
 					fi
