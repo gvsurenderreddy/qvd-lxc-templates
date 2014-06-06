@@ -224,9 +224,14 @@ install_qvd_desktop() {
 clean_dev() {	
 
 	MOUNTPOINT=$1
-	fuser -km $MOUNTPOINT
-	umount $MOUNTPOINT 
-
+	
+	for i in $(lsof | grep $MOUNTPOINT | awk ' { print $2 } ') ; do
+	        echo $i
+	        kill -9 $i || echo procces $i not running
+	done
+	
+	umount 	$MOUNTPOINT
+	
 }
 
 
