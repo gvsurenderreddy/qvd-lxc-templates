@@ -46,8 +46,6 @@ if [ -r /etc/default/lxc ]; then
     . /etc/default/lxc
 fi
 
-
-
 install_qvd_vma() { 
 	
 	#Params are rootfs version arch
@@ -185,92 +183,55 @@ install_qvd_desktop() {
 		ROOTFS=$1
 		DESKTOP=$2 
 		
-		case $DESKTOP in 
-			none) 
-				echo "No Desktop to install" 
-				return 0
+		case $DESKTOP in
+		    none)
+			echo "No desktop to install"
+			return 0
 			;;
-			qvd)
-				DESKTOP=xfce4
+		    qvd*)
+			DESKTOP=qvd-desktop
 			;;
-			xfc*) 
-				DESKTOP=xubuntu-desktop
-			;; 
-			gnome*) 
-				DESKTOP=ubuntu-gnome-desktop
+		    xfc*)
+                        DESKTOP=xfce4
+                        ;;
+                    xubuntu*)
+			DESKTOP=xubuntu-desktop
 			;;
-			kde*)
-				DESKTOP=kubuntu-desktop
+		    gnome*)
+			DESKTOP=ubuntu-gnome-desktop
 			;;
-			*) 
-				echo $DESKTOP not supported
-				return 1 
+		    kde*)
+			DESKTOP=kubuntu-desktop
+			;;
+		    *)
+			echo $DESKTOP not supported
+			return 1
 			;;
 		esac
 		
-		# Setting chroot to install packages 
-		mount -o bind /proc $ROOTFS/proc
-		mount -o bind /dev $ROOTFS/dev
-		mount -o bind /dev/pts $ROOTFS/dev/pts
-		mount -o bind /sys $ROOTFS/sys
+		echo "Installing desktop $DESKTOP"
+                install_packages $ROOTFS $DESKTOP
 		
-		echo "Installing Desktop $DESKTOP"
-		chroot $ROOTFS apt-get install --force-yes -y $DESKTOP 
-		
-		if [ $DESKTOP == 'xfce4' ] ; then 
-			configure_qvd_desktop $ROOTFS
+		if [ "$DESKTOP" == 'qvd-desktop' ] ; then 
+                    install_packages $ROOTFS firefox thunderbird tomboy pidgin flashplugin-installer
+                    install_tunderbird_plugins $ROOTFS lightning https://addons.mozilla.org/thunderbird/downloads/file/258498 thunderbird
 		fi 
-		
-		# Umounting tempfs 
-		
-		
-		umount  $ROOTFS/proc
-		umount  $ROOTFS/dev/pts
-		umount  $ROOTFS/dev
-		umount  $ROOTFS/sys
-		
 }
 
-install_extra_packages(){
-	
-	ROOTFS=$1
-	EXTRAPACKAGES=$2
-	
-	if [ -z $EXTRAPACKAGES ] ; then 
-		echo Not extra packages to install 
-		return 0 
-	fi 
-	
-	
-	# Setting chroot to install packages 
-	mount -o bind /proc $ROOTFS/proc
-	mount -o bind /dev $ROOTFS/dev
-	mount -o bind /dev/pts $ROOTFS/dev/pts
-	mount -o bind /sys $ROOTFS/sys
+install_crossover() {
+    rootfs=$1
+    crossover_deb=crossover_13.1.3-1.deb
 
-	LIST=
-	if [[ (-f $EXTRAPACKAGES ) && (-s $EXTRAPACKAGES) ]] ; then 
-		while read line ; do
-		        if [ ! $(echo $line | egrep "^\s*#") ] ; then
-		                LIST=$(echo $LIST $line)
-		        fi
-		done < $EXTRAPACKAGES 
-		#echo $LIST 
-		if [ -z "$LIST" ] ; then 
-			echo $EXTRAPACKAGES File is empty
-		else
-			chroot $ROOTFS apt-get install --force-yes -y $LIST 
-		fi
-	else
-		echo $EXTRAPACKAGES not found
-		return 1 
-	fi
-		
-	umount  $ROOTFS/proc
-	umount  $ROOTFS/dev/pts
-	umount  $ROOTFS/dev
-	umount  $ROOTFS/sys
-	
+    mkdir -p "$rootfs/tmp/crossover"
+    wget -O "$rootfs/tmp/crossover/$crossover_deb" \
+        "http://media.codeweavers.com/pub/crossover/cxlinux/demo/$crossover_deb"
+
+    # python dependency is missing on crossover package
+    install_packages $rootfs python python-gtk2 xfonts-base xfonts-scalable
+
+    chroot $rootfs dpkg --install "/tmp/crossover/$crossover_deb" 2>/dev/null || true
+    chroot $rootfs apt-get -fy install
+    return 0
 }
 
 configure_ubuntu() {
@@ -509,7 +470,7 @@ install_packages()
         umount $ROOTFS/proc
 	umount $ROOTFS/dev/pts
 	umount $ROOTFS/dev
-	umount $ROOTFS/system
+	umount $ROOTFS/sys
     fi
 }
 
@@ -634,11 +595,7 @@ install_ubuntu()
             rm -rf "$cache/rootfs-$arch"
         fi
 
-        echo "Checki
-
-
-
-ng cache download in $cache/rootfs-$arch ... "
+        echo "Checking cache download in $cache/rootfs-$arch ... "
         if [ ! -e "$cache/rootfs-$arch" ]; then
             download_ubuntu $cache $arch $release
             if [ $? -ne 0 ]; then
@@ -871,7 +828,7 @@ usage()
 $1 -h|--help [-a|--arch] [-b|--bindhome <user>] [-d|--debug]
    [-F | --flush-cache] [-r|--release <release>] [ -S | --auth-key <keyfile>]
    [--rootfs <rootfs>] [--packages <packages>] [-u|--user <user>] [--password <password>]
-   [ --desktop <desktop> ] [ --extra-packages <file>] [ --qvdversion <qvdversion>]
+   [ --desktop <desktop> ] [ --extra-packages <file>] [ --qvdversion <qvdversion>] [--crossover]
 release: the ubuntu release (e.g. precise): defaults to host release on ubuntu, otherwise uses latest LTS
 bindhome: bind <user>'s home into the container
           The ubuntu user will not be created, and <user> will have
@@ -881,13 +838,13 @@ auth-key: SSH Public key file to inject into container
 packages: list of packages to add comma separated
 packages-from: file containing a list of packages, one per line
 desktop: xfce4, gnome, kde, etc.
-qvdversion: version of QVD to be installed in the image. 
+qvdversion: version of QVD to be installed in the image.
 
 EOF
     return 0
 }
 
-options=$(getopt -o a:b:hp:r:n:FS:du: -l arch:,bindhome:,help,path:,release:,name:,flush-cache,auth-key:,debug,rootfs:,packages:,packages-from:,user:,password:,mirror:,security-mirror:,desktop:,qvdversion -- "$@")
+options=$(getopt -o a:b:hp:r:n:FS:du: -l arch:,bindhome:,help,path:,release:,name:,flush-cache,auth-key:,debug,rootfs:,packages:,packages-from:,user:,password:,mirror:,security-mirror:,desktop:,qvdversion:,crossover -- "$@")
 
 if [ $? -ne 0 ]; then
     usage $(basename $0)
@@ -952,8 +909,7 @@ do
     --security-mirror) SECURITY_MIRROR=$2; shift 2;;
     --desktop)      desktop=$2 ; shift 2 ;;
     --qvdversion)   qvdversion=$2 ; shift 2 ;;
-    --qvdversion) qvdversion=$2 ; shift 2 ;;
-    --packages-from) extrapackages=$2 ; shift 2 ;; 
+    --crossover)    crossover=1; shift 1;;
     --)             shift 1; break ;;
     *)              break
     esac
@@ -1059,6 +1015,13 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+if [ -n "crossover" ]; then
+    install_crossover $rootfs
+    if [ "$?" -ne 0 ]; then
+        echo "failed to install crossover"
+        exit 1;
+    fi
+fi
 
 install_qvd_vma $rootfs $qvdversion
 if [ $? -ne 0 ]; then
@@ -1069,12 +1032,6 @@ fi
 install_qvd_desktop $rootfs $desktop 
 if [ $? -ne 0 ]; then
     echo "failed to install desktop"
-    exit 1
-fi
-
-install_extra_packages $rootfs $extrapackages
-if [ $? -ne 0 ]; then
-    echo "failed to install extrapackages"
     exit 1
 fi
 
