@@ -47,26 +47,27 @@ if [ -r /etc/default/lxc ]; then
 fi
 
 install_qvd_vma() { 
-	
-	#Params are rootfs version arch
+        ROOTFS=$1
+	QVDMIRROR=$2
+        QVDVERSION=$3
 
-	rootfs=$1
-	qvdversion=$2
-	
-	write_qvd_mirror $rootfs $qvdversion $arch
-	download_qvd_vma $rootfs
-	configure_vma_container $rootfs
+	write_qvd_mirror "$ROOTFS" "$QVDMIRROR" "$QVDVERSION" "$arch"
+	download_qvd_vma $ROOTFS
+	configure_vma_container $ROOTFS
 }
 
-
-
-write_qvd_mirror () {	
-	QVDVERSION=$2
+write_qvd_mirror () {
 	ROOTFS=$1
-	QVDMIRROR="deb http://cpan-mirror.qindel.com/packages ${QVDVERSION} main"
-	cat <<EOF > "$ROOTFS/etc/apt/sources.list.d/qvd.list"
-$QVDMIRROR
+        QVDMIRROR=$2
+	QVDVERSION=$3
+
+	cat <<EOF > "${ROOTFS}/etc/apt/sources.list.d/qvd.list"
+deb ${QVDMIRROR} ${QVDVERSION} main
 EOF
+
+	echo 1>&2 "*** QVD apt config:"
+	cat 1>&2 "${ROOTFS}/etc/apt/sources.list.d/qvd.list"
+
 }
 
 download_qvd_vma ()  {
@@ -828,7 +829,7 @@ usage()
 $1 -h|--help [-a|--arch] [-b|--bindhome <user>] [-d|--debug]
    [-F | --flush-cache] [-r|--release <release>] [ -S | --auth-key <keyfile>]
    [--rootfs <rootfs>] [--packages <packages>] [-u|--user <user>] [--password <password>]
-   [ --desktop <desktop> ] [ --extra-packages <file>] [ --qvdversion <qvdversion>] [--crossover]
+   [ --desktop <desktop> ] [ --extra-packages <file>] [ --qvdmirror <qvdmirror_url>] [ --qvdversion <qvdversion>] [--crossover]
 release: the ubuntu release (e.g. precise): defaults to host release on ubuntu, otherwise uses latest LTS
 bindhome: bind <user>'s home into the container
           The ubuntu user will not be created, and <user> will have
@@ -838,13 +839,14 @@ auth-key: SSH Public key file to inject into container
 packages: list of packages to add comma separated
 packages-from: file containing a list of packages, one per line
 desktop: xfce4, gnome, kde, etc.
+qvdmirror: URL pointing to QVD package repository
 qvdversion: version of QVD to be installed in the image.
 
 EOF
     return 0
 }
 
-options=$(getopt -o a:b:hp:r:n:FS:du: -l arch:,bindhome:,help,path:,release:,name:,flush-cache,auth-key:,debug,rootfs:,packages:,packages-from:,user:,password:,mirror:,security-mirror:,desktop:,qvdversion:,crossover -- "$@")
+options=$(getopt -o a:b:hp:r:n:FS:du: -l arch:,bindhome:,help,path:,release:,name:,flush-cache,auth-key:,debug,rootfs:,packages:,packages-from:,user:,password:,mirror:,security-mirror:,desktop:,qvdversion:,qvdmirror:,crossover -- "$@")
 
 if [ $? -ne 0 ]; then
     usage $(basename $0)
@@ -909,6 +911,7 @@ do
     --security-mirror) SECURITY_MIRROR=$2; shift 2;;
     --desktop)      desktop=$2 ; shift 2 ;;
     --qvdversion)   qvdversion=$2 ; shift 2 ;;
+    --qvdmirror)    qvdmirror=$2 ; shift 2 ;;
     --crossover)    crossover=1; shift 1;;
     --)             shift 1; break ;;
     *)              break
@@ -953,8 +956,17 @@ if [ $hostarch = "powerpc" -a $arch != "powerpc" ]; then
     exit 1
 fi
 
-if [ -z $qvdversion ]; then 
+case "$qvdversion" in
+    "")
 	qvdversion="nightly-builds"
+	;;
+    3*)
+	qvdversion="QVD-$qvdversion"
+	;;
+esac
+
+if [ -z "$qvdmirror" ]; then 
+    qvdmirror="http://theqvd.com/packages/ubuntu"
 fi
 
 if [ -n "$packages_from" ]; then
@@ -1023,7 +1035,7 @@ if [ -n "crossover" ]; then
     fi
 fi
 
-install_qvd_vma $rootfs $qvdversion
+install_qvd_vma "$rootfs" "$qvdmirror" "$qvdversion"
 if [ $? -ne 0 ]; then
     echo "failed to install vma"
     exit 1
