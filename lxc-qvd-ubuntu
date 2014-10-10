@@ -230,7 +230,8 @@ install_crossover() {
     # python dependency is missing on crossover package
     install_packages $rootfs python python-gtk2 xfonts-base xfonts-scalable
 
-    chroot $rootfs dpkg --install "/tmp/crossover/$crossover_deb" 2>/dev/null || true
+    # chroot $rootfs dpkg --install "/tmp/crossover/$crossover_deb" 2>/dev/null || true
+    chroot $rootfs dpkg --install "/tmp/crossover/$crossover_deb" || true
     chroot $rootfs apt-get -fy install
     return 0
 }
