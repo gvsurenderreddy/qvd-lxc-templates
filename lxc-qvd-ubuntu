@@ -236,6 +236,22 @@ install_crossover() {
     return 0
 }
 
+install_local_packages() {
+    rootfs=$1
+    debs=$2
+    local_debs="$rootfs/tmp/local_debs"
+
+    mkdir -p $local_debs
+
+    for deb in $debs; do
+	deb_bn=`basename $deb`
+	cp $deb "$local_debs/$deb_bn"
+	chroot $rootfs dpkg --install "/tmp/local_debs/$deb_bn" || true
+	chroot $rootfs apt-get -fy install
+    done
+    return 0
+}
+
 configure_ubuntu() {
     rootfs=$1
     hostname=$2
@@ -689,6 +705,7 @@ post_process()
     rootfs=$1
     release=$2
     packages=$3
+    debs=$4
 
     # Disable service startup
     cat > $rootfs/usr/sbin/policy-rc.d << EOF
@@ -760,6 +777,13 @@ EOF
         install_packages $rootfs $packages
     fi
 
+    if [ -n "$debs" ]
+    then
+	local debs="`echo $debs | sed 's/,/ /g'`"
+	echo "Installing local packages: ${debs}"
+	install_local_packages "$rootfs" "$debs"
+    fi
+
     # Set initial timezone as on host
     if [ -f /etc/timezone ]; then
         cat /etc/timezone > $rootfs/etc/timezone
@@ -829,7 +853,7 @@ usage()
     cat <<EOF
 $1 -h|--help [-a|--arch] [-b|--bindhome <user>] [-d|--debug]
    [-F | --flush-cache] [-r|--release <release>] [ -S | --auth-key <keyfile>]
-   [--rootfs <rootfs>] [--packages <packages>] [-u|--user <user>] [--password <password>]
+   [--rootfs <rootfs>] [--packages <packages>] [--debs <debs>] [-u|--user <user>] [--password <password>]
    [ --desktop <desktop> ] [ --extra-packages <file>] [ --qvdmirror <qvdmirror_url>] [ --qvdversion <qvdversion>] [--crossover]
 release: the ubuntu release (e.g. precise): defaults to host release on ubuntu, otherwise uses latest LTS
 bindhome: bind <user>'s home into the container
@@ -839,6 +863,7 @@ arch: the container architecture (e.g. amd64): defaults to host arch
 auth-key: SSH Public key file to inject into container
 packages: list of packages to add comma separated
 packages-from: file containing a list of packages, one per line
+debs: list of local debian (.deb) files
 desktop: xfce4, gnome, kde, etc.
 qvdmirror: URL pointing to QVD package repository
 qvdversion: version of QVD to be installed in the image.
@@ -847,7 +872,7 @@ EOF
     return 0
 }
 
-options=$(getopt -o a:b:hp:r:n:FS:du: -l arch:,bindhome:,help,path:,release:,name:,flush-cache,auth-key:,debug,rootfs:,packages:,packages-from:,user:,password:,mirror:,security-mirror:,desktop:,qvdversion:,qvdmirror:,crossover -- "$@")
+options=$(getopt -o a:b:hp:r:n:FS:du: -l arch:,bindhome:,help,path:,release:,name:,flush-cache,auth-key:,debug,rootfs:,packages:,packages-from:,debs:,user:,password:,mirror:,security-mirror:,desktop:,qvdversion:,qvdmirror:,crossover -- "$@")
 
 if [ $? -ne 0 ]; then
     usage $(basename $0)
@@ -903,7 +928,8 @@ do
     -F|--flush-cache) flushcache=1; shift 1;;
     -r|--release)   release=$2; shift 2;;
     --packages)     packages=$2; shift 2;;
-    --packages-from) packages_from=$2 ; shift 2 ;; 
+    --packages-from) packages_from=$2 ; shift 2 ;;
+    --debs)         debs=$2; shift 2;;
     -b|--bindhome)  bindhome=$2; shift 2;;
     -a|--arch)      arch=$2; shift 2;;
     -S|--auth-key)  auth_key=$2; shift 2;;
@@ -1034,7 +1060,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-install_qvd_desktop $rootfs $desktop 
+install_qvd_desktop "$rootfs" "$desktop"
 if [ $? -ne 0 ]; then
     echo "failed to install desktop"
     exit 1
@@ -1048,7 +1074,7 @@ if [ -n "$crossover" ]; then
     fi
 fi
 
-post_process $rootfs $release $trim_container $packages
+post_process "$rootfs" "$release" "$packages" "$debs"
 
 if [ -n "$bindhome" ]; then
     do_bindhome $rootfs $bindhome
