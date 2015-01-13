@@ -79,8 +79,8 @@ download_qvd_vma ()  {
 configure_vma_container () {
 	ROOTFS=$1 
 		
-	# Enable vma 
-	chroot $ROOTFS mkdir /etc/qvd
+	# Enable vma
+	chroot $ROOTFS mkdir /etc/qvd || true
 	chroot $ROOTFS cp /usr/lib/qvd/config/sample-vma.conf /etc/qvd/vma.conf 
 	
 	# Removing cron jobs 
