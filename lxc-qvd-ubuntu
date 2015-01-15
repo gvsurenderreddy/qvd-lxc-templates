@@ -249,11 +249,11 @@ install_local_packages() {
 }
 
 configure_ubuntu() {
-    rootfs=$1
-    hostname=$2
-    release=$3
-    user=$4
-    password=$5
+    local rootfs=$1
+    local hostname=$2
+    local release=$3
+    local user=$4
+    local password=$5
 
     # configure the network using the dhcp
     cat <<EOF > $rootfs/etc/network/interfaces
@@ -299,6 +299,7 @@ EOF
         chroot $rootfs locale-gen en_US.UTF-8 || true
         chroot $rootfs update-locale LANG=en_US.UTF-8 || true
     else
+        chroot $rootfs locale-gen en_US.UTF-8 || true
         chroot $rootfs locale-gen $LANG || true
         chroot $rootfs update-locale LANG=$LANG || true
     fi
@@ -329,7 +330,7 @@ EOF
 # passed-in user is either 'ubuntu'.
 finalize_user()
 {
-    user=$1
+    local user=$1
 
     sudo_version=$(chroot $rootfs dpkg-query -W -f='${Version}' sudo)
 
@@ -986,19 +987,19 @@ if [ -z "$rootfs" ]; then
     fi
 fi
 
-install_ubuntu $rootfs $release $flushcache
+install_ubuntu "$rootfs" "$release" "$flushcache"
 if [ $? -ne 0 ]; then
     echo "failed to install ubuntu $release"
     exit 1
 fi
 
-configure_ubuntu $rootfs $name $release $user $password
+configure_ubuntu "$rootfs" "$name" "$release" "$user" "$password"
 if [ $? -ne 0 ]; then
     echo "failed to configure ubuntu $release for a container"
     exit 1
 fi
 
-copy_configuration $path $rootfs $name $arch $release
+copy_configuration "$path" "$rootfs" "$name" "$arch" "$release"
 if [ $? -ne 0 ]; then
     echo "failed write configuration file"
     exit 1
@@ -1033,7 +1034,7 @@ if [ "$user" == "" ]; then
     echo "##"
     echo ""
 else
-    finalize_user $user
+    finalize_user "$user"
     echo ""
     echo "##"
     echo "# The default user is '$user' with password '$password'!"
