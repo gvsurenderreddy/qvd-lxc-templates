@@ -208,18 +208,11 @@ install_qvd_desktop() {
 	kde*)
 	    install_packages --recommended $ROOTFS kubuntu-desktop
 	    ;;
-		    *)
-			echo $DESKTOP not supported
-			return 1
-			;;
-		esac
-		
-
-
-		
-		if [ "$DESKTOP" == 'qvd-desktop' ] ; then 
-
-		fi 
+	*)
+	    echo $DESKTOP not supported
+	    return 1
+	    ;;
+    esac
 }
 
 install_crossover() {
