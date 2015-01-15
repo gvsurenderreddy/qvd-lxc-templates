@@ -181,41 +181,44 @@ configure_qvd_desktop(){
 
 
 install_qvd_desktop() { 
-		ROOTFS=$1
-		DESKTOP=$2 
-		
-		case $DESKTOP in
-		    none)
-			echo "No desktop to install"
-			return 0
-			;;
-		    qvd*)
-			DESKTOP=qvd-desktop
-			;;
-		    xfc*)
-                        DESKTOP=xfce4
-                        ;;
-                    xubuntu*)
-			DESKTOP=xubuntu-desktop
-			;;
-		    gnome*)
-			DESKTOP=ubuntu-gnome-desktop
-			;;
-		    kde*)
-			DESKTOP=kubuntu-desktop
-			;;
+    ROOTFS=$1
+    DESKTOP=$2 
+
+    echo "Installing desktop $DESKTOP"		
+    case $DESKTOP in
+	none)
+	    echo "No desktop to install"
+	    return 0
+	    ;;
+	qvd*)
+	    install_packages --recomended $ROOTFS xfce4 desktop-base
+	    install_packages $ROOTFS firefox thunderbird tomboy pidgin flashplugin-installer
+	    install_tunderbird_plugins $ROOTFS lightning \
+		https://addons.mozilla.org/thunderbird/downloads/file/258498 thunderbird
+	    ;;
+	xfc*)
+	    install_packages --recomended $ROOTFS xfce4 gnome-icon-theme-full
+            ;;
+        xubuntu*)
+	    install_packages --recommended $ROOTFS xubuntu-desktop
+	    ;;
+	gnome*)
+	    install_packages --recommanded $ROOTFS ubuntu-gnome-desktop
+	    ;;
+	kde*)
+	    install_packages --recommended $ROOTFS kubuntu-desktop
+	    ;;
 		    *)
 			echo $DESKTOP not supported
 			return 1
 			;;
 		esac
 		
-		echo "Installing desktop $DESKTOP"
-                install_packages $ROOTFS $DESKTOP
+
+
 		
 		if [ "$DESKTOP" == 'qvd-desktop' ] ; then 
-                    install_packages $ROOTFS firefox thunderbird tomboy pidgin flashplugin-installer
-                    install_tunderbird_plugins $ROOTFS lightning https://addons.mozilla.org/thunderbird/downloads/file/258498 thunderbird
+
 		fi 
 }
 
@@ -462,6 +465,11 @@ EOF
 
 install_packages()
 {
+    local recommended=""
+    if [ "$1" = '--recomended' ]; then
+        recommended="yes"
+        shift;
+    fi
     local rootfs="$1"
     shift
     local packages="$*"
@@ -478,7 +486,11 @@ install_packages()
 	mount -o bind /dev/pts $ROOTFS/dev/pts
 	mount -o bind /sys $ROOTFS/sys
 
-        chroot $rootfs apt-get install --force-yes -y --no-install-recommends ${packages}
+	if [ "$recommended" -eq "" ]; then
+            chroot $rootfs apt-get install --force-yes -y --no-install-recommends ${packages}
+	else
+            chroot $rootfs apt-get install --force-yes -y ${packages}
+	fi
 
         umount $ROOTFS/proc
 	umount $ROOTFS/dev/pts
@@ -801,6 +813,9 @@ EOF
         ln -s /run/shm $rootfs/dev/shm
     fi
 
+    # clean cache
+    chroot $rootfs apt-get clean
+
     # Re-enable service startup
     rm $rootfs/usr/sbin/policy-rc.d
 }
@@ -1018,19 +1033,18 @@ fi
 
 post_process "$rootfs" "$release" "$packages" "$debs"
 
-if ["$user" ne ""]
+if [ "$user" == "" ]; then
+    echo ""
+    echo "##"
+    echo "# No user has been added into the container."
+    echo "##"
+    echo ""
+else
     finalize_user $user
-
     echo ""
     echo "##"
     echo "# The default user is '$user' with password '$password'!"
     echo "# Use the 'sudo' command to run tasks as root in the container."
-    echo "##"
-    echo ""
-else
-    echo ""
-    echo "##"
-    echo "# No user has been added into the container."
     echo "##"
     echo ""
 fi
